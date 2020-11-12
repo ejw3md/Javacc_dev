@@ -1,0 +1,6 @@
+a = 4
+b = 3 * 4 / 6 + 3
+c = a % b ^ 12
+print a
+print b
+print c

@@ -1,0 +1,171 @@
+options {
+    STATIC = false;
+}
+
+PARSER_BEGIN(Pyparser)
+    import com.test.Variable;
+    import com.test.Variable.VariableType;
+    import java.io.PrintStream;
+    import java.util.HashMap;
+
+
+    class Pyparser {
+        static HashMap<String, Variable> variables = new HashMap<String, Variable>();
+        public static void main(String[] args) throws ParseException, TokenMgrError, NumberFormatException {
+            Pyparser parser = new Pyparser( System.in );
+            parser.Start( System.out );
+        }
+
+        public static Variable getVariable(String name) throws ParseException {
+            if(!variables.containsKey(name))
+                throw new ParseException("cannot find symbol " + name);
+            return variables.get(name);
+        }
+    }
+PARSER_END(Pyparser)
+
+SKIP: {" "}
+TOKEN: { <EOL: "\n" | "\r" | "\r\n" > }
+
+/* helper tokens */
+TOKEN:      { <#DIGIT   : (["0"-"9"])                           > }
+TOKEN:      { <#LETTER  : (["A"-"Z", "a"-"z"])                  > }
+
+/* print token */
+TOKEN:      { <PRINT    : "print"                               > }
+
+/* variable token */
+TOKEN:      { <VARIABLE : <LETTER> (<DIGIT>|<LETTER>)*          > }
+
+/* literals */
+TOKEN:      { <NUMBER   : (<DIGIT>)+ | (<DIGIT>)+"."(<DIGIT>)+  > }
+TOKEN:      { <STRING   : "\""(<LETTER>)+"\""                   > }
+
+/* arithmetic operators */
+TOKEN:      { <PLUS     : "+"                                   > }
+TOKEN:      { <MINUS    : "-"                                   > }
+TOKEN:      { <MULTIPLY : "*"                                   > }
+TOKEN:      { <DIVIDE   : "/"                                   > }
+TOKEN:      { <MOD      : "%"                                   > }
+TOKEN:      { <XOR      : "^"                                   > }
+
+/* assignment operators */
+TOKEN:      { <EQUALS   : "="                                   > }
+TOKEN:      { <PLUS_EQ  : "+="                                  > }
+TOKEN:      { <MINUS_EQ : "-="                                  > }
+TOKEN:      { <MULTIPLY_EQ : "*="                               > }
+TOKEN:      { <DIVIDE_EQ : "/="                                 > }
+TOKEN:      { <XOR_EQ   : "^="                                  > }
+TOKEN:      { <MOD_EQ   : "%="                                  > }
+
+void Start(PrintStream printStream) throws NumberFormatException:
+{ }
+{
+    (
+        Statement()
+        (<EOL>)*
+    )*
+    <EOF>
+}
+
+void Statement():
+{
+    Token t;
+    float e;
+    Variable v;
+}
+{
+    (
+        /* assignment */
+        t = <VARIABLE>
+        <EQUALS>
+        e = Expression()
+        {
+            v = new Variable(t.image, e);
+            variables.put(t.image, v);
+        }
+        |
+
+        /* empty expression */
+        Expression()
+        |
+
+        /* print expression */
+        <PRINT>
+        t = <VARIABLE>
+        {
+            v = getVariable(t.image);
+            System.out.println(v.getValue());
+        }
+    )
+}
+
+float Expression() throws NumberFormatException, ArithmeticException:
+{
+    float i;
+    float value;
+}
+{
+    value = Term()
+    (
+        <PLUS>
+        i = Term()
+        { value += i; }
+        |
+        <MINUS>
+        i = Term()
+        { value -= i; }
+        |
+        <XOR>
+        i = Term()
+        {   if(value != (int)value || i != (int)i) {
+                throw new ArithmeticException("^ operator only supported on type: int");
+            }
+            value = (int)value ^ (int)i;
+        }
+    )*
+    { return value; }
+}
+
+float Term() throws NumberFormatException:
+{
+    float i;
+    float value;
+}
+{
+    value = Primary()
+    (
+        <MULTIPLY>
+        i = Primary()
+        { value *= i; }
+        |
+        <DIVIDE>
+        i = Primary()
+        { value /= i; }
+        |
+        <MOD>
+        i = Primary()
+        { value %= i; }
+    )*
+    { return value; }
+}
+
+float Primary() throws NumberFormatException:
+{
+    Token t;
+    float d;
+    Variable v;
+}
+{
+    t = <NUMBER>
+    { return Float.parseFloat( t.image ); }
+    |
+    t = <VARIABLE>
+    {
+        v = getVariable(t.image);
+        return v.getValue();
+    }
+    <MINUS>
+    d = Primary()
+    { return -d; }
+}
